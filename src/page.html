@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Eventually Gets Built</title>
+<meta name="description" content="How Kelsey and Zack build Eventually as a team of two, with AI doing most of the typing, and how this post has changed over time.">
+__CANONICAL__
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Eventually">
+<meta property="og:title" content="How Eventually gets built: our two-person software factory">
+<meta property="og:description" content="How Kelsey and Zack build Eventually as a team of two, with AI doing most of the typing, and how this post has changed over time.">
+<meta property="og:url" content="https://build.eventuallyticketing.com/">
+<meta property="og:image" content="https://build.eventuallyticketing.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="How Eventually gets built: our two-person software factory">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://build.eventuallyticketing.com/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; a revision rail (change bars + slider) sits above the post, the plan for the real build below it. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #17191e;
+  --muted: #5b6270;
+  --line: #dde1e8;
+  --accent: #3546c9;
+  --accent-soft: #e6e9fb;
+  --add-bg: #d9f3e1;
+  --add-fg: #0f5a2b;
+  --add-bar: #2f9d5a;
+  --del-bg: #fbe1df;
+  --del-fg: #962020;
+  --del-bar: #d0463f;
+  --pending: #8a90a0;
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --thumb: 22px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111318; --surface: #181b22; --ink: #e9ebf1; --muted: #9ba2ae; --line: #2b303b;
+    --accent: #95a3ff; --accent-soft: #232a4d;
+    --add-bg: #12351f; --add-fg: #86e3a8; --add-bar: #47b874;
+    --del-bg: #431b1c; --del-fg: #ffa29c; --del-bar: #e2645d;
+    --pending: #7d8494;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111318; --surface: #181b22; --ink: #e9ebf1; --muted: #9ba2ae; --line: #2b303b;
+  --accent: #95a3ff; --accent-soft: #232a4d;
+  --add-bg: #12351f; --add-fg: #86e3a8; --add-bar: #47b874;
+  --del-bg: #431b1c; --del-fg: #ffa29c; --del-bar: #e2645d;
+  --pending: #7d8494;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 17px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.eyebrow { font: 500 12px/1.4 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0; }
+h1.page { font: 700 clamp(28px, 5vw, 40px)/1.1 var(--f-display); margin: 6px 0 10px; text-wrap: balance; letter-spacing: -.01em; }
+.lead { color: var(--muted); margin: 0; max-width: 62ch; }
+.lead strong { color: var(--ink); font-weight: 600; }
+
+/* Revision rail */
+.rail { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 12px; font-family: var(--f-display); }
+.rail-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.rev-id { font: 500 13px/1.3 var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.rev-label { font: 600 20px/1.25 var(--f-display); margin: 2px 0 0; }
+.rev-summary { color: var(--muted); font-size: 15px; margin: 2px 0 0; }
+.rev-stats { font: 500 14px/1.3 var(--f-mono); font-variant-numeric: tabular-nums; display: flex; gap: 12px; white-space: nowrap; }
+.rev-stats .a { color: var(--add-fg); } .rev-stats .d { color: var(--del-fg); }
+.bars { position: relative; height: 84px; margin-top: 4px; }
+.bars .base { position: absolute; left: 0; right: 0; top: 56px; height: 1px; background: var(--line); }
+.bar { position: absolute; width: 18px; transform: translateX(-50%); top: 0; height: 84px; cursor: pointer; border-radius: 4px; }
+.bar:hover { background: var(--accent-soft); }
+.bar.on { background: var(--accent-soft); outline: 1.5px solid var(--accent); }
+.bar i { position: absolute; left: 4px; right: 4px; border-radius: 2px; }
+.bar .up { background: var(--add-bar); bottom: 28px; }
+.bar .dn { background: var(--del-bar); top: 57px; }
+.bar .n { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font: 500 10px/1 var(--f-mono); color: var(--muted); }
+.bar.on .n { color: var(--accent); }
+.slider-row { display: flex; align-items: center; gap: 10px; }
+.step { flex: none; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 600 18px/1 var(--f-display); cursor: pointer; }
+.step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.step:disabled { opacity: .4; cursor: default; }
+input[type="range"] { flex: 1; min-width: 0; -webkit-appearance: none; appearance: none; height: var(--thumb); background: transparent; margin: 0; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--line); }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: var(--thumb); height: var(--thumb); margin-top: -9px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--accent); }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--accent); }
+input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 600 14px/1 var(--f-display); padding: 9px 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.seg button:focus-visible, .step:focus-visible, .gap-btn:focus-visible, .copy:focus-visible, .bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.chk { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; }
+label.chk input { accent-color: var(--accent); width: 16px; height: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.legend ins, .legend del { padding: 0 4px; }
+.note { font: 400 13px/1.5 var(--f-display); color: var(--muted); margin: 0; }
+
+/* The post */
+.post { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: clamp(18px, 4vw, 40px); min-width: 0; }
+.post > * + * { margin-top: 14px; }
+.post h1 { font: 700 clamp(26px, 4.5vw, 34px)/1.15 var(--f-display); margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+.post h2 { font: 600 22px/1.25 var(--f-display); margin-top: 34px; text-wrap: balance; }
+.post p { margin-bottom: 0; }
+.post .byline { font: 500 13px/1.4 var(--f-mono); color: var(--muted); margin-top: 8px; }
+.post ul, .post ol { padding-left: 1.3em; margin-bottom: 0; display: flex; flex-direction: column; gap: 8px; }
+.post strong { font-weight: 600; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.post table { border-collapse: collapse; width: 100%; font-size: 15px; line-height: 1.45; min-width: 520px; }
+.post th, .post td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.post th { font: 600 13px/1.3 var(--f-display); color: var(--muted); background: var(--bg); }
+.post tr:last-child td { border-bottom: 0; }
+.post td:first-child { font-family: var(--f-display); font-weight: 600; white-space: nowrap; }
+.pending { border: 1.5px dashed var(--pending); border-radius: 8px; padding: 10px 14px; color: var(--muted); font-style: italic; }
+.pending b { font: 600 11px/1 var(--f-mono); font-style: normal; letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 4px; color: var(--pending); }
+.embed { border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: var(--bg); font: 500 14px/1.45 var(--f-display); color: var(--muted); display: flex; gap: 12px; align-items: center; }
+.embed svg { flex: none; }
+
+ins { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; background: var(--add-bg); color: var(--add-fg); border-radius: 3px; }
+del { text-decoration: line-through; background: var(--del-bg); color: var(--del-fg); border-radius: 3px; }
+.b-add { background: var(--add-bg); box-shadow: -4px 0 0 var(--add-bar); border-radius: 2px; }
+.b-del { background: var(--del-bg); box-shadow: -4px 0 0 var(--del-bar); border-radius: 2px; text-decoration: line-through; color: var(--del-fg); }
+.b-add, .b-del { padding: 2px 8px; }
+li.b-add, li.b-del { margin-left: -8px; padding-left: 8px; }
+tr.b-add td { background: var(--add-bg); } tr.b-del td { background: var(--del-bg); color: var(--del-fg); text-decoration: line-through; }
+tr.b-add, tr.b-del { box-shadow: none; }
+.b-add ins { background: transparent; text-decoration: none; }
+.gap-btn { display: block; width: 100%; border: 1px dashed var(--line); background: transparent; border-radius: 8px; color: var(--muted); font: 500 13px/1 var(--f-mono); padding: 10px; cursor: pointer; text-align: center; }
+.gap-btn:hover { border-color: var(--accent); color: var(--accent); }
+td.gap-cell { padding: 4px; } td.gap-cell .gap-btn { border: 0; }
+.nochange { color: var(--muted); font-style: italic; }
+
+/* Plan */
+.plan { display: flex; flex-direction: column; gap: 14px; }
+.plan h2 { font: 600 22px/1.25 var(--f-display); margin: 0; }
+.plan p { margin: 0; max-width: 65ch; }
+.plan ol { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 10px; }
+.plan li::marker { font-family: var(--f-mono); color: var(--accent); }
+.plan code, .post code { font: 400 .86em var(--f-mono); background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+.snip { position: relative; }
+.snip pre { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow-x: auto; font: 400 13px/1.55 var(--f-mono); }
+.copy { position: absolute; top: 8px; right: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; font: 600 12px/1 var(--f-display); padding: 7px 10px; cursor: pointer; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: height .2s ease; } }
+@media (max-width: 520px) { body { font-size: 16px; } .bar { width: 14px; } .rail { padding: 14px 12px 12px; } }
+/* The page header carries the title, so the post's own h1 is hidden. Without scripts, the post shows and the slider stays hidden. */
+.post > h1 { display: none; }
+.no-js .rail { display: none; }
+.embed-fig { display: block; margin: 0; }
+.embed-fig img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.embed-fig figcaption { font: 400 13px/1.45 var(--f-display); color: var(--muted); margin-top: 8px; }
+.post table { width: 100%; border-collapse: collapse; }
+</style>
+</head>
+<body>
+<script>document.documentElement.classList.remove("no-js");</script>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Eventually · how we work</p>
+    <h1 class="page">How Eventually gets built: our two-person software factory</h1>
+    <p class="lead">How the two of us build Eventually, with AI doing most of the typing and people making every call that matters.</p>
+    <p class="lead">Last updated __UPDATED__.</p>
+  </header>
+
+  <section class="rail" aria-label="Days">
+    <div class="rail-head">
+      <div>
+        <div class="rev-id" id="revId"></div>
+        <p class="rev-label" id="revLabel"></p>
+        <p class="rev-summary" id="revSummary"></p>
+      </div>
+      <div class="rev-stats" id="revStats" aria-live="polite"></div>
+    </div>
+    <div class="bars" id="bars" aria-hidden="true"><div class="base"></div></div>
+    <div class="slider-row">
+      <button class="step" id="prev" type="button" aria-label="Previous day">‹</button>
+      <input type="range" id="slider" min="1" max="2" step="1" value="2" aria-label="Day">
+      <button class="step" id="next" type="button" aria-label="Next day">›</button>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" id="modeDiff" aria-pressed="true">Changes</button>
+        <button type="button" id="modeClean" aria-pressed="false">Clean copy</button>
+      </div>
+      <label class="chk" for="onlyChanged"><input type="checkbox" id="onlyChanged" checked> Only the changed parts</label>
+    </div>
+    <p class="note">This post keeps changing as we do. Move the slider to see how it stood at the end of earlier days, and choose Changes to see what changed: <strong>added text in green</strong>, <strong>removed text struck through in red</strong>.</p>
+  </section>
+
+  <article class="post" id="post" aria-live="polite">__STATIC_POST__</article>
+</div>
+
+<script>
+const VERSIONS = __VERSIONS__;
+const ALT = "Flow chart of an idea's path from a customer ask to shipped, with one loop back for fixes and two human gates: Zack merges, then Zack ships.";
+
+const SEP = "␞";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------- Parse Markdown into blocks ----------
+function parse(md) {
+  const blocks = [];
+  const lines = md.split("\n");
+  let olCount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) { olCount = 0; continue; }
+    let m;
+    if (line.startsWith("@byline ")) blocks.push({ type: "byline", text: line.slice(8) });
+    else if (line.startsWith("@pending ")) blocks.push({ type: "pending", text: line.slice(9) });
+    else if (line.startsWith("@embed ")) blocks.push({ type: "embed", text: line.slice(7) });
+    else if (line.startsWith("## ")) blocks.push({ type: "h2", text: line.slice(3) });
+    else if (line.startsWith("# ")) blocks.push({ type: "h1", text: line.slice(2) });
+    else if (line.startsWith("- ")) blocks.push({ type: "ul", text: line.slice(2) });
+    else if ((m = line.match(/^\d+\.\s(.*)$/))) blocks.push({ type: "ol", text: m[1], n: ++olCount });
+    else if (line.startsWith("|")) {
+      if (/^\|\s*-{3}/.test(line)) continue;
+      const cells = line.replace(/^\|\s*|\s*\|$/g, "").split(/\s*\|\s*/);
+      const isHead = lines[i + 1] && /^\|\s*-{3}/.test(lines[i + 1]);
+      blocks.push({ type: isHead ? "th" : "tr", text: cells.join(" " + SEP + " ") });
+    } else blocks.push({ type: "p", text: line });
+  }
+  return blocks.map((b) => ({ ...b, key: b.type + "|" + b.text, tokens: tokenize(b.text) }));
+}
+
+function tokenize(text) {
+  const out = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let last = 0, m;
+  // Words, punctuation and spaces are separate tokens, so "workaround" and "workaround," compare as one word plus a comma
+  const push = (s, bold) => (s.match(/[\p{L}\p{N}'’\/_-]+|\s+|[^\p{L}\p{N}\s]/gu) || []).forEach((w) => out.push({ w, b: bold }));
+  while ((m = re.exec(text))) { push(text.slice(last, m.index), false); push(m[1], true); last = re.lastIndex; }
+  push(text.slice(last), false);
+  return out;
+}
+
+// ---------- LCS diff ----------
+function lcs(a, b, eq) {
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = eq(a[i], b[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const ops = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (eq(a[i], b[j])) { ops.push({ op: "eq", a: a[i], b: b[j] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) ops.push({ op: "del", a: a[i++] });
+    else ops.push({ op: "ins", b: b[j++] });
+  }
+  while (i < n) ops.push({ op: "del", a: a[i++] });
+  while (j < m) ops.push({ op: "ins", b: b[j++] });
+  return ops;
+}
+const tokEq = (x, y) => x.b === y.b && (x.w === y.w || (!x.w.trim() && !y.w.trim()));
+// Make word diffs read like edits: a lone space between two changes joins them,
+// and each joined change shows all removed words first, then all added words.
+function tidy(ops) {
+  const isSpace = (o) => o.op === "eq" && !o.a.w.trim();
+  const out = ops.slice();
+  for (let i = 0; i < out.length; i++) {
+    if (!isSpace(out[i])) continue;
+    let j = i; while (j < out.length && isSpace(out[j])) j++;
+    const before = out[i - 1], after = out[j];
+    if (before && after && before.op !== "eq" && after.op !== "eq") {
+      const repl = [];
+      for (let x = i; x < j; x++) repl.push({ op: "del", a: out[x].a }, { op: "ins", b: out[x].b });
+      out.splice(i, j - i, ...repl);
+      i += repl.length - 1;
+    }
+  }
+  const res = [];
+  for (let i = 0; i < out.length; ) {
+    if (out[i].op === "eq") { res.push(out[i++]); continue; }
+    const dels = [], inss = [];
+    while (i < out.length && out[i].op !== "eq") (out[i].op === "del" ? dels : inss).push(out[i++]);
+    res.push(...dels, ...inss);
+  }
+  return res;
+}
+function similarity(x, y) {
+  const A = new Set(x.tokens.map((t) => t.w.trim().toLowerCase()));
+  const B = new Set(y.tokens.map((t) => t.w.trim().toLowerCase()));
+  let both = 0; A.forEach((w) => B.has(w) && both++);
+  return (2 * both) / (A.size + B.size || 1);
+}
+
+function diffDocs(oldBlocks, newBlocks) {
+  const ops = lcs(oldBlocks, newBlocks, (x, y) => x.key === y.key);
+  const rows = [];
+  let k = 0;
+  while (k < ops.length) {
+    if (ops[k].op === "eq") { rows.push({ st: "same", blk: ops[k].b }); k++; continue; }
+    const dels = [], inss = [];
+    while (k < ops.length && ops[k].op !== "eq") { ops[k].op === "del" ? dels.push(ops[k].a) : inss.push(ops[k].b); k++; }
+    let j = 0;
+    for (const d of dels) {
+      let hit = -1;
+      for (let x = j; x < inss.length; x++) {
+        const t = inss[x].type, same = t === d.type || (t === "tr" && d.type === "th") || (t === "th" && d.type === "tr");
+        if (same && d.type !== "pending" && similarity(d, inss[x]) >= 0.5) { hit = x; break; }
+      }
+      if (hit < 0) { rows.push({ st: "del", blk: d }); continue; }
+      while (j < hit) rows.push({ st: "add", blk: inss[j++] });
+      rows.push({ st: "mod", blk: inss[hit], ops: tidy(lcs(d.tokens, inss[hit].tokens, tokEq)) });
+      j = hit + 1;
+    }
+    while (j < inss.length) rows.push({ st: "add", blk: inss[j++] });
+  }
+  return rows;
+}
+
+const countable = (b) => b.type !== "pending" && b.type !== "byline";
+const words = (toks) => toks.filter((t) => /[\p{L}\p{N}]/u.test(t.w)).length;
+function stats(rows) {
+  let a = 0, d = 0;
+  for (const r of rows) {
+    if (!countable(r.blk)) continue;
+    if (r.st === "add") a += words(r.blk.tokens);
+    else if (r.st === "del") d += words(r.blk.tokens);
+    else if (r.st === "mod") for (const o of r.ops) { if (o.op === "ins") a += words([o.b]); if (o.op === "del") d += words([o.a]); }
+  }
+  return { a, d };
+}
+
+// ---------- Render ----------
+function runs(items) { // items: [{st, t:{w,b}}] -> html with merged spans
+  let html = "", cur = null, buf = "";
+  const flush = () => {
+    if (!cur) return;
+    let s = cur.b ? "<strong>" + buf + "</strong>" : buf;
+    if (cur.st === "ins") s = "<ins>" + s + "</ins>";
+    if (cur.st === "del") s = "<del>" + s + "</del>";
+    html += s; buf = "";
+  };
+  for (const it of items) {
+    const w = it.t.w;
+    if (!cur || cur.st !== it.st || cur.b !== it.t.b) { flush(); cur = { st: it.st, b: it.t.b }; }
+    buf += esc(w);
+  }
+  flush();
+  return html;
+}
+const plainItems = (blk) => blk.tokens.map((t) => ({ st: "eq", t }));
+function modItems(ops) { return ops.map((o) => o.op === "eq" ? { st: "eq", t: o.b } : o.op === "ins" ? { st: "ins", t: o.b } : { st: "del", t: o.a }); }
+function cellsHtml(items, tag) { // split items on separator token into cells
+  const cells = [[]];
+  for (const it of items) { if (it.t.w.trim() === SEP) cells.push([]); else cells[cells.length - 1].push(it); }
+  return cells.map((c) => `<${tag}>${runs(c)}</${tag}>`).join("");
+}
+
+function rowHtml(r) {
+  const blk = r.blk;
+  const items = r.st === "mod" ? modItems(r.ops) : plainItems(blk);
+  const cls = r.st === "add" ? ' class="b-add"' : r.st === "del" ? ' class="b-del"' : "";
+  const lab = r.st === "add" ? '<span class="sr">Added: </span>' : r.st === "del" ? '<span class="sr">Removed: </span>' : "";
+  switch (blk.type) {
+    case "h1": return `<h1${cls}>${lab}${runs(items)}</h1>`;
+    case "h2": return `<h2${cls}>${lab}${runs(items)}</h2>`;
+    case "byline": return `<p class="byline${r.st === "add" ? " b-add" : r.st === "del" ? " b-del" : ""}">${runs(items)}</p>`;
+    case "pending": return `<div class="pending${r.st === "del" ? " b-del" : r.st === "add" ? " b-add" : ""}"><b>Planned section</b>${lab}${runs(items)}</div>`;
+    case "embed": {
+      const st = r.st === "add" ? " b-add" : r.st === "del" ? " b-del" : "";
+      if (cur === VERSIONS.length - 1 && r.st !== "del") return `<figure class="embed-fig${st}"><img src="life-of-an-idea.png" alt="${esc(ALT)}" loading="lazy"><figcaption>${lab}${runs(items)}</figcaption></figure>`;
+      return `<div class="embed${st}"><span>${lab}${runs(items)}<br><span style="font-weight:400">The chart from this day isn't kept. The newest day shows the current one.</span></span></div>`;
+    }
+    case "ul": case "ol": return `<li${blk.n ? ` value="${blk.n}"` : ""}${cls}>${lab}${runs(items)}</li>`;
+    case "th": return `<tr${cls}>${cellsHtml(items, "th")}</tr>`;
+    case "tr": return `<tr${cls}>${cellsHtml(items, "td")}</tr>`;
+    default: return `<p${cls}>${lab}${runs(items)}</p>`;
+  }
+}
+
+const expanded = new Set();
+function renderRows(rows, onlyChanged) {
+  // Visibility: changed rows, one row of context each side, the h1, and the heading of any section that changed.
+  const vis = rows.map((r) => r.st !== "same" || r.blk.type === "h1");
+  if (onlyChanged) {
+    let section = -1; const secOf = rows.map((r, i) => (r.blk.type === "h2" || r.blk.type === "h1" ? (section = i) : section));
+    rows.forEach((r, i) => {
+      if (r.st === "same") return;
+      if (i > 0) vis[i - 1] = true;
+      if (i < rows.length - 1) vis[i + 1] = true;
+      if (secOf[i] >= 0) vis[secOf[i]] = true;
+    });
+    // Show a table's header row when any of its rows shows
+    rows.forEach((r, i) => {
+      if (r.blk.type !== "th") return;
+      for (let x = i + 1; x < rows.length && rows[x].blk.type === "tr"; x++) if (vis[x]) { vis[i] = true; break; }
+    });
+  } else vis.fill(true);
+
+  // Build stream of items and gaps
+  const stream = [];
+  for (let i = 0; i < rows.length; ) {
+    if (vis[i]) { stream.push({ row: rows[i] }); i++; continue; }
+    let j = i; while (j < rows.length && !vis[j]) j++;
+    if (expanded.has(i)) for (let x = i; x < j; x++) stream.push({ row: rows[x] });
+    else stream.push({ gap: i, count: j - i });
+    i = j;
+  }
+  if (!rows.some((r) => r.st !== "same") && onlyChanged) return `<p class="nochange">No text changed that day.</p>`;
+
+  let html = "", open = null; // open: "ul" | "ol" | "table"
+  const close = () => { if (open === "table") html += "</tbody></table></div>"; else if (open) html += `</${open}>`; open = null; };
+  const groupOf = (t) => (t === "ul" ? "ul" : t === "ol" ? "ol" : t === "tr" || t === "th" ? "table" : null);
+  stream.forEach((s, idx) => {
+    if (s.gap !== undefined) {
+      const label = `Show ${s.count} unchanged line${s.count === 1 ? "" : "s"}`;
+      const btn = `<button type="button" class="gap-btn" data-gap="${s.gap}">${label}</button>`;
+      const next = stream[idx + 1];
+      if (open === "table" && next && next.row && next.row.blk.type === "tr") html += `<tr><td class="gap-cell" colspan="3">${btn}</td></tr>`;
+      else { close(); html += btn; }
+      return;
+    }
+    const g = groupOf(s.row.blk.type);
+    if (s.row.blk.type === "th" || g !== open) {
+      close();
+      if (g === "table") html += '<div class="tbl"><table><tbody>';
+      else if (g) html += `<${g}>`;
+      open = g;
+    }
+    html += rowHtml(s.row);
+  });
+  close();
+  return html;
+}
+
+// ---------- State ----------
+const parsed = VERSIONS.map((v) => parse(v.markdown));
+const diffs = parsed.map((blocks, i) => (i === 0 ? blocks.map((b) => ({ st: "add", blk: b })) : diffDocs(parsed[i - 1], blocks)));
+const statList = diffs.map(stats);
+let cur = VERSIONS.length - 1, mode = "diff";
+
+function readHash() {
+  const m = (location.hash || "").match(/^#day-(\d+)$/);
+  if (m) { const n = +m[1]; if (n >= 1 && n <= VERSIONS.length) cur = n - 1; }
+}
+
+function drawBars() {
+  const box = $("bars");
+  const max = Math.max(...statList.map((s) => Math.max(s.a, s.d)), 1);
+  const n = VERSIONS.length;
+  VERSIONS.forEach((v, i) => {
+    const s = statList[i];
+    const el = document.createElement("div");
+    el.className = "bar";
+    el.style.left = `calc(var(--thumb) / 2 + 46px + ${i / (n - 1)} * (100% - 92px - var(--thumb)))`;
+    const up = s.a ? Math.max(3, Math.round(Math.sqrt(s.a / max) * 50)) : 0;
+    const dn = s.d ? Math.max(3, Math.round(Math.sqrt(s.d / max) * 14)) : 0;
+    el.innerHTML = `<i class="up" style="height:${up}px"></i><i class="dn" style="height:${dn}px"></i><span class="n">${v.rev}</span>`;
+    el.title = `Day ${v.rev}, ${v.date}: ${v.label}, +${s.a} / −${s.d} words`;
+    el.addEventListener("click", () => go(i));
+    box.appendChild(el);
+  });
+}
+
+function go(i) { cur = Math.max(0, Math.min(VERSIONS.length - 1, i)); expanded.clear(); render(); try { history.replaceState(null, "", "#day-" + VERSIONS[cur].rev); } catch (e) {} }
+
+function render() {
+  const v = VERSIONS[cur], s = statList[cur];
+  $("revId").textContent = `Day ${v.rev} of ${VERSIONS.length} · ${v.date}`;
+  $("revLabel").textContent = v.label;
+  $("revSummary").textContent = v.summary;
+  $("revStats").innerHTML = cur === 0 ? '<span>First day</span>' : `<span class="a">+${s.a} words</span><span class="d">−${s.d} words</span>`;
+  $("slider").value = v.rev;
+  $("slider").setAttribute("aria-valuetext", `Day ${v.rev} of ${VERSIONS.length}, ${v.date}: ${v.label}`);
+  $("prev").disabled = cur === 0; $("next").disabled = cur === VERSIONS.length - 1;
+  document.querySelectorAll(".bar").forEach((b, i) => b.classList.toggle("on", i === cur));
+  $("modeDiff").setAttribute("aria-pressed", mode === "diff");
+  $("modeClean").setAttribute("aria-pressed", mode === "clean");
+  $("onlyChanged").disabled = mode !== "diff";
+  $("onlyChanged").parentElement.style.opacity = mode === "diff" ? 1 : 0.45;
+  const rows = mode === "clean" || cur === 0
+    ? parsed[cur].map((b) => ({ st: "same", blk: b }))
+    : diffs[cur];
+  $("post").innerHTML = renderRows(rows, mode === "diff" && cur > 0 && $("onlyChanged").checked);
+}
+
+$("slider").addEventListener("input", (e) => go(+e.target.value - 1));
+$("prev").addEventListener("click", () => go(cur - 1));
+$("next").addEventListener("click", () => go(cur + 1));
+$("modeDiff").addEventListener("click", () => { mode = "diff"; render(); });
+$("modeClean").addEventListener("click", () => { mode = "clean"; render(); });
+$("onlyChanged").addEventListener("change", () => { expanded.clear(); render(); });
+$("post").addEventListener("click", (e) => {
+  const b = e.target.closest(".gap-btn"); if (!b) return;
+  expanded.add(+b.dataset.gap); render();
+});
+window.addEventListener("hashchange", () => { readHash(); render(); });
+
+// If the page is ever embedded, report its height to the parent page
+if (window.parent !== window) {
+  const post = () => window.parent.postMessage({ type: "post-history-height", height: document.documentElement.scrollHeight }, "*");
+  new ResizeObserver(post).observe(document.body);
+}
+
+$("slider").max = VERSIONS.length;
+readHash();
+drawBars();
+render();
+</script>
+</body>
+</html>
