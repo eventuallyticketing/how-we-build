@@ -21,9 +21,9 @@ Kelsey owns what we build, Zack owns how it gets built and shipped, and the AI h
 
 ## The life of an idea
 
-An idea becomes shipped software in ten steps, and only one of them has to be Zack: the merge.
+An idea becomes shipped software in ten steps, and only two of them have to be Zack: the merge and the deploy.
 
-![The life of an idea: one loop back, one human gate](life-of-an-idea.png)
+![The life of an idea: one loop back, two human gates](life-of-an-idea.png)
 
 Anything the checks or the reviewer find loops back to the AI session that built it, and the change goes round again until it comes back clean.
 
@@ -35,7 +35,7 @@ Anything the checks or the reviewer find loops back to the AI session that built
 1. **Staging try-out.** The change goes onto the practice copy of the app and gets clicked through in a real browser, at desktop and phone sizes.
 1. **Handoff note.** The author writes what the work was for, what was checked and where, and what's still uncertain, then labels it "Ready for Zack".
 1. **Zack merges.** He reads the change and the note and merges it into the main code.
-1. **Ship to customers.** The full test suite runs once more, then it deploys.
+1. **Zack ships to customers.** He runs the deploy himself. The full test suite runs once more, then it goes live.
 1. **Watch and tell.** Health checks watch for trouble, and Friday's update tells customers what got better.
 
 ## The safety rails
