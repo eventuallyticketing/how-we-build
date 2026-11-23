@@ -4,7 +4,7 @@ Eventually is built by two people, Kelsey and Zack, with AI doing most of the ty
 
 People keep asking how that works, so this is the plain version as it stands today. It changes almost every week, so treat it as a snapshot rather than a manual.
 
-The short version: every change is written by an AI session, checked by machines, read by a second AI looking for bugs, tried on a practice copy of the app, and handed to a person. Only a person merges it, and only a person ships it to customers.
+The short version: every change is written by an AI session, checked by machines, read by a second AI looking for bugs, tried on a practice copy of the app, and handed to a person. A person merges it, apart from a few routine updates covered below, and only a person ships it to customers.
 
 ## Who does what
 
@@ -28,22 +28,22 @@ An idea becomes shipped software in ten steps, and only two of them have to be Z
 Anything the checks or the reviewer find loops back to the AI session that built it, and the change goes round again until it comes back clean.
 
 1. **Customer ask.** A request, a bug report or one of our own ideas becomes an issue in GitHub, the shared to-do list for our code.
-1. **Fit check.** A helper gives it a first read against who we build for and labels it green, yellow or red. It's advice; we can overrule it.
-1. **Ranked list.** It joins one ranked list of everything, and the single most important item is pinned as next up.
-1. **Built on a branch.** An AI session, working with Kelsey or Zack, builds it on its own branch, a private copy of the code, so nothing touches the live app while it's in progress.
-1. **Tests and AI review.** Every save runs the checks in the background. When the work is ready, the AI reviewer reads it for bugs.
-1. **Staging try-out.** The change goes onto the practice copy of the app and gets clicked through in a real browser, at desktop and phone sizes.
-1. **Handoff note.** The author writes what the work was for, what was checked and where, and what's still uncertain, then labels it "Ready for Zack".
-1. **Zack merges.** He reads the change and the note and merges it into the main code.
-1. **Zack ships to customers.** He runs the deploy himself. The full test suite runs once more, then it goes live.
-1. **Watch and tell.** Health checks watch for trouble, and Friday's update tells customers what got better.
+2. **Fit check.** A helper gives it a first read against who we build for and labels it green, yellow or red. It's advice; we can overrule it.
+3. **Ranked list.** It joins one ranked list of everything, and the single most important item is pinned as next up.
+4. **Built on a branch.** An AI session, working with Kelsey or Zack, builds it on its own branch, a private copy of the code, so nothing touches the live app while it's in progress.
+5. **Tests and AI review.** Every save runs the checks in the background. When the work is ready, the AI reviewer reads it for bugs.
+6. **Staging try-out.** The change goes onto the practice copy of the app and gets clicked through in a real browser, at desktop and phone sizes.
+7. **Handoff note.** The author writes what the work was for, what was checked and where, and what's still uncertain, then labels it "Ready for Zack".
+8. **Zack merges.** He reads the change and the note and merges it into the main code.
+9. **Ship to customers.** The full test suite runs once more, then Zack runs the deploy himself.
+10. **Watch and tell.** Health checks watch for trouble, and Friday's update tells customers nothing directly: it's our internal summary of what got better, and it shapes what we send them.
 
 ## The safety rails
 
 AI makes it cheap to write code, so the work moved to checking it. These are the rails every change runs on.
 
-- **A person merges every change.** AI sessions write and fix; Zack is the one who merges and ships. Nothing reaches customers on a machine's say-so.
-- **One change at a time.** We finish and merge one change before pushing the next one through review, so nothing half-done piles up and the machines doing the checking don't get overloaded.
+- **A person merges every change.** AI sessions write and fix; Zack is the one who merges and ships. Nothing reaches customers on a machine's say-so. One exception, added recently: a narrow set of routine, high-confidence dependency updates can merge themselves once every check passes. Shipping them still waits for a person.
+- **One change at a time when it counts.** Most days we work on several branches in parallel, each in its own working copy of the code, so more than one change can move forward at once. When something is urgent to release, we line the work up and finish it one change at a time instead, so the most important change lands first and nothing blocks it.
 - **Machines check before people do.** Every save kicks off the tests, style checks and security scans in the background, and the change shows a green or red light. A change can't be marked ready until the full test suite has passed on its exact final version.
 - **A second set of AI eyes, held to a proof standard.** The AI reviewer reads every change for bugs. A finding only blocks if it comes with a failing test or a way to reproduce it, except anything about security, money or lost data, which always blocks.
 - **Riskier changes get more scrutiny.** Each change gets an automatic risk score from what it touches. Payments, sign-in and syncing get a stronger review and an outside reviewer, and the riskiest changes need a real walk-through on the practice copy, not just a note saying it was fine.
@@ -65,7 +65,15 @@ Most of the routine runs on a timer, so the two of us spend our attention on dec
 | Overnight | A triage pass over new errors and a sweep of open issues, which can turn small fixes into changes ready for review in the morning | Scheduled helpers |
 | Each morning | One ranked list and a single pinned "next up" | Chief-of-staff assistant, then Zack |
 | Mondays | Batched library and security updates, and a look at which review step actually caught bugs last week | Zack, with AI help |
-| Fridays | A plain-language summary of what got better for customers that week, written from what shipped | Scheduled helper, posted to Slack |
+| Fridays | An internal summary of what got better for customers that week, written from what shipped. We use it to shape the updates we send out | Scheduled helper, posted to our team Slack |
+
+## How we handle support
+
+An AI answers customers first, and one of us steps in whenever a person would do better.
+
+- **An AI answers first.** Customers write in through Intercom, our customer chat tool, and its AI assistant answers from our help docs, which live in Ferndesk.
+- **The help docs keep up with the code.** The help docs are updated every time a change merges or ships, so the AI answers from the app as it is today, not last month's version.
+- **A person steps in.** When a customer needs a human touch, or an answer needs correcting, one of us takes over the conversation.
 
 ## The skills and scripts we lean on
 
@@ -114,8 +122,8 @@ We keep the details of our security setup private, but the habits behind it are 
 - **Library updates on a clock.** When a security advisory lands for a library we use, it gets a due date by severity: the most serious the same day, moderate ones within a week, and the rest in a Monday batch.
 - **Privacy docs move with the code.** If a change adds an outside service, sends new personal information to one, or stores something in a visitor's browser, the merge checklist flags it so our privacy documents get updated in the same change.
 - **Watching for trouble.** The regular health checks on the live app include signs of attack, not just errors, and speak up only when something looks off.
-- **A rehearsed recovery plan.** Once a year we restore the live database from backup onto a separate copy, check that it works in a browser, and tear it down again. We ran the first full rehearsal this month.
-- **People hold the keys.** AI sessions prepare the work, but a person merges every change and a person ships it.
+- **A rehearsed recovery plan.** Once a year we restore the live database from backup onto a separate copy, check that it works in a browser, and tear it down again. We ran the first full rehearsal in November 2026.
+- **People hold the keys.** AI sessions prepare the work, a person merges nearly every change, and a person ships every one.
 
 ## It keeps changing
 
