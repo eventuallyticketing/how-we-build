@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Build the site from post.md and its git history.
 
-Each day post.md changed becomes one step on the slider: the last commit of
-that day (Chicago time), labelled with that commit's first line. The newest
+Each day post.md changed becomes a version: the last commit of that day
+(Chicago time), labelled with that commit's first line. The page lays the
+versions on a calendar from the first day to today, so days with no change
+show as empty days. The newest
 version is also written out as plain HTML, so search engines and readers
 without JavaScript get the whole post.
 
@@ -43,11 +45,15 @@ def history():
     versions = []
     for i, (day, cs) in enumerate(sorted(days.items()), start=1):
         last = cs[-1]
+        # One clean line per day: the last commit's subject and body. A day with
+        # several commits and no body on the last one lists the earlier subjects.
+        summary = last["body"] or ("Also: " + "; ".join(c["subject"] for c in cs[:-1]) + "." if len(cs) > 1 else "")
         versions.append({
             "rev": i,
+            "iso": day.isoformat(),
             "date": f"{day:%b} {day.day}, {day.year}",
             "label": last["subject"],
-            "summary": " ".join(c["body"] or c["subject"] for c in cs) if len(cs) > 1 else last["body"],
+            "summary": summary,
             "markdown": to_slider_md(git("show", f"{last['sha']}:{POST}")),
         })
     return versions

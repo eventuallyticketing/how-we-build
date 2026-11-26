@@ -92,6 +92,8 @@ h1.page { font: 700 clamp(28px, 5vw, 40px)/1.1 var(--f-display); margin: 6px 0 1
 .bar .dn { background: var(--del-bar); top: 57px; }
 .bar .n { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font: 500 10px/1 var(--f-mono); color: var(--muted); }
 .bar.on .n { color: var(--accent); }
+.bar .dot { position: absolute; left: 50%; top: 53px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--line); }
+.bar.empty .n { opacity: .7; }
 .slider-row { display: flex; align-items: center; gap: 10px; }
 .step { flex: none; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 600 18px/1 var(--f-display); cursor: pointer; }
 .step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
@@ -379,7 +381,7 @@ function rowHtml(r) {
     case "pending": return `<div class="pending${r.st === "del" ? " b-del" : r.st === "add" ? " b-add" : ""}"><b>Planned section</b>${lab}${runs(items)}</div>`;
     case "embed": {
       const st = r.st === "add" ? " b-add" : r.st === "del" ? " b-del" : "";
-      if (cur === VERSIONS.length - 1 && r.st !== "del") return `<figure class="embed-fig${st}"><img src="life-of-an-idea.png" alt="${esc(ALT)}" loading="lazy"><figcaption>${lab}${runs(items)}</figcaption></figure>`;
+      if (DAYS[cur].vi === VERSIONS.length - 1 && r.st !== "del") return `<figure class="embed-fig${st}"><img src="life-of-an-idea.png" alt="${esc(ALT)}" loading="lazy"><figcaption>${lab}${runs(items)}</figcaption></figure>`;
       return `<div class="embed${st}"><span>${lab}${runs(items)}<br><span style="font-weight:400">The chart from this day isn't kept. The newest day shows the current one.</span></span></div>`;
     }
     case "ul": case "ol": return `<li${blk.n ? ` value="${blk.n}"` : ""}${cls}>${lab}${runs(items)}</li>`;
@@ -448,51 +450,87 @@ function renderRows(rows, onlyChanged) {
 const parsed = VERSIONS.map((v) => parse(v.markdown));
 const diffs = parsed.map((blocks, i) => (i === 0 ? blocks.map((b) => ({ st: "add", blk: b })) : diffDocs(parsed[i - 1], blocks)));
 const statList = diffs.map(stats);
-let cur = VERSIONS.length - 1, mode = "diff";
+// A calendar from the first day to today (Chicago), so days with no change show as empty days.
+const TZ = "America/Chicago";
+const todayIso = (() => { try { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()); } catch (e) { return VERSIONS[VERSIONS.length - 1].iso; } })();
+const isoDate = (iso) => new Date(iso + "T12:00:00Z");
+const fmt = (iso, o) => isoDate(iso).toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, o));
+const DAYS = (() => {
+  const out = [], last = VERSIONS[VERSIONS.length - 1].iso, end = todayIso > last ? todayIso : last;
+  let vi = -1;
+  for (let d = isoDate(VERSIONS[0].iso); ; d = new Date(d.getTime() + 864e5)) {
+    const iso = d.toISOString().slice(0, 10);
+    const changed = VERSIONS.findIndex((v) => v.iso === iso);
+    if (changed >= 0) vi = changed;
+    out.push({ iso, vi, changed: changed >= 0 });
+    if (iso >= end || out.length > 3660) break;
+  }
+  return out;
+})();
+let cur = DAYS.length - 1, mode = "diff";
 
 function readHash() {
-  const m = (location.hash || "").match(/^#day-(\d+)$/);
-  if (m) { const n = +m[1]; if (n >= 1 && n <= VERSIONS.length) cur = n - 1; }
+  const h = location.hash || "";
+  let m = h.match(/^#(\d{4}-\d{2}-\d{2})$/);
+  if (m) { const i = DAYS.findIndex((d) => d.iso === m[1]); if (i >= 0) cur = i; return; }
+  m = h.match(/^#day-(\d+)$/); // older links counted versions, not days
+  if (m) { const v = VERSIONS[+m[1] - 1]; if (v) cur = DAYS.findIndex((d) => d.iso === v.iso); }
 }
 
 function drawBars() {
   const box = $("bars");
   const max = Math.max(...statList.map((s) => Math.max(s.a, s.d)), 1);
-  const n = VERSIONS.length;
-  VERSIONS.forEach((v, i) => {
-    const s = statList[i];
+  const n = DAYS.length;
+  const every = n <= 14 ? 1 : Math.ceil(n / 10);
+  DAYS.forEach((d, i) => {
     const el = document.createElement("div");
-    el.className = "bar";
-    el.style.left = `calc(var(--thumb) / 2 + 46px + ${i / (n - 1)} * (100% - 92px - var(--thumb)))`;
-    const up = s.a ? Math.max(3, Math.round(Math.sqrt(s.a / max) * 50)) : 0;
-    const dn = s.d ? Math.max(3, Math.round(Math.sqrt(s.d / max) * 14)) : 0;
-    el.innerHTML = `<i class="up" style="height:${up}px"></i><i class="dn" style="height:${dn}px"></i><span class="n">${v.rev}</span>`;
-    el.title = `Day ${v.rev}, ${v.date}: ${v.label}, +${s.a} / −${s.d} words`;
+    el.className = "bar" + (d.changed ? "" : " empty");
+    el.style.left = n === 1 ? "50%" : `calc(var(--thumb) / 2 + 46px + ${i / (n - 1)} * (100% - 92px - var(--thumb)))`;
+    el.style.width = `min(18px, calc((100% - 92px) / ${n}))`;
+    const day = isoDate(d.iso).getUTCDate();
+    const showN = d.changed || i % every === 0 || i === n - 1;
+    const num = showN ? (i === 0 || day === 1 ? fmt(d.iso, { month: "short", day: "numeric" }) : String(day)) : "";
+    if (d.changed) {
+      const s = statList[d.vi];
+      const up = s.a ? Math.max(3, Math.round(Math.sqrt(s.a / max) * 50)) : 0;
+      const dn = s.d ? Math.max(3, Math.round(Math.sqrt(s.d / max) * 14)) : 0;
+      el.innerHTML = `<i class="up" style="height:${up}px"></i><i class="dn" style="height:${dn}px"></i><span class="n">${num}</span>`;
+      el.title = `${VERSIONS[d.vi].date}: ${VERSIONS[d.vi].label}, +${s.a} / −${s.d} words`;
+    } else {
+      el.innerHTML = `<span class="dot"></span><span class="n">${num}</span>`;
+      el.title = `${fmt(d.iso, { month: "short", day: "numeric", year: "numeric" })}: no changes`;
+    }
     el.addEventListener("click", () => go(i));
     box.appendChild(el);
   });
 }
 
-function go(i) { cur = Math.max(0, Math.min(VERSIONS.length - 1, i)); expanded.clear(); render(); try { history.replaceState(null, "", "#day-" + VERSIONS[cur].rev); } catch (e) {} }
+function go(i) { cur = Math.max(0, Math.min(DAYS.length - 1, i)); expanded.clear(); render(); try { history.replaceState(null, "", "#" + DAYS[cur].iso); } catch (e) {} }
 
 function render() {
-  const v = VERSIONS[cur], s = statList[cur];
-  $("revId").textContent = `Day ${v.rev} of ${VERSIONS.length} · ${v.date}`;
-  $("revLabel").textContent = v.label;
-  $("revSummary").textContent = v.summary;
-  $("revStats").innerHTML = cur === 0 ? '<span>First day</span>' : `<span class="a">+${s.a} words</span><span class="d">−${s.d} words</span>`;
-  $("slider").value = v.rev;
-  $("slider").setAttribute("aria-valuetext", `Day ${v.rev} of ${VERSIONS.length}, ${v.date}: ${v.label}`);
-  $("prev").disabled = cur === 0; $("next").disabled = cur === VERSIONS.length - 1;
+  const d = DAYS[cur], vi = d.vi, v = VERSIONS[vi], s = statList[vi];
+  const when = fmt(d.iso, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
+  $("revId").textContent = when;
+  if (d.changed) {
+    $("revLabel").textContent = v.label;
+    $("revSummary").textContent = v.summary;
+    $("revStats").innerHTML = vi === 0 ? '<span>First day</span>' : `<span class="a">+${s.a} words</span><span class="d">−${s.d} words</span>`;
+  } else {
+    $("revLabel").textContent = "No changes";
+    $("revSummary").textContent = `The post stayed as it was on ${fmt(v.iso, { month: "short", day: "numeric" })}.`;
+    $("revStats").innerHTML = "";
+  }
+  $("slider").value = cur + 1;
+  $("slider").setAttribute("aria-valuetext", `${when}: ${d.changed ? v.label : "no changes"}`);
+  $("prev").disabled = cur === 0; $("next").disabled = cur === DAYS.length - 1;
   document.querySelectorAll(".bar").forEach((b, i) => b.classList.toggle("on", i === cur));
   $("modeDiff").setAttribute("aria-pressed", mode === "diff");
   $("modeClean").setAttribute("aria-pressed", mode === "clean");
   $("onlyChanged").disabled = mode !== "diff";
   $("onlyChanged").parentElement.style.opacity = mode === "diff" ? 1 : 0.45;
-  const rows = mode === "clean" || cur === 0
-    ? parsed[cur].map((b) => ({ st: "same", blk: b }))
-    : diffs[cur];
-  $("post").innerHTML = renderRows(rows, mode === "diff" && cur > 0 && $("onlyChanged").checked);
+  const asClean = mode === "clean" || vi === 0 || !d.changed;
+  const rows = asClean ? parsed[vi].map((b) => ({ st: "same", blk: b })) : diffs[vi];
+  $("post").innerHTML = renderRows(rows, !asClean && $("onlyChanged").checked);
 }
 
 $("slider").addEventListener("input", (e) => go(+e.target.value - 1));
@@ -513,7 +551,7 @@ if (window.parent !== window) {
   new ResizeObserver(post).observe(document.body);
 }
 
-$("slider").max = VERSIONS.length;
+$("slider").max = DAYS.length;
 readHash();
 drawBars();
 render();
