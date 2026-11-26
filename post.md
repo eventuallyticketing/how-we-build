@@ -2,7 +2,7 @@
 
 Eventually is built by two people, Kelsey and Zack, with AI doing most of the typing and people making every call that matters. There is no engineering team behind us. What we have instead is a handful of AI helpers, each with a narrow job, and a process that keeps their work honest.
 
-People keep asking how that works, so this is the plain version as it stands today. It changes almost every week, so treat it as a snapshot rather than a manual.
+People keep asking how that works, so this is the plain version as it stands today. It changes almost every week, and we update this page when it does.
 
 The short version: every change is written by an AI session, checked by machines, read by a second AI looking for bugs, tried on a practice copy of the app, and handed to a person. A person merges it, apart from a few routine updates covered below, and only a person ships it to customers.
 
@@ -124,6 +124,14 @@ We keep the details of our security setup private, but the habits behind it are 
 - **Watching for trouble.** The regular health checks on the live app include signs of attack, not just errors, and speak up only when something looks off.
 - **A rehearsed recovery plan.** Once a year we restore the live database from backup onto a separate copy, check that it works in a browser, and tear it down again. We ran the first full rehearsal in November 2026.
 - **People hold the keys.** AI sessions prepare the work, a person merges nearly every change, and a person ships every one.
+
+## Current drawbacks
+
+Right now the factory runs on our laptops. The AI sessions, the background checks, the AI reviewer and several of the scheduled helpers all run on Zack's or Kelsey's machine. If Zack closes his laptop, the work on it stops: a session mid-change waits, checks don't report, and the helpers that live there don't run.
+
+We chose that on purpose. It's cheap, and it moved our checks off hosted minutes we kept running out of. The cost is that how much gets done depends on whose laptop is open.
+
+Where we're headed is a mix: mostly local, plus cloud sessions for when Zack is on the go. Something like Amp and its orbs, remote sandboxes where an AI session keeps working with the laptop closed, would let work carry on away from the desk. We haven't made that move yet.
 
 ## It keeps changing
 
